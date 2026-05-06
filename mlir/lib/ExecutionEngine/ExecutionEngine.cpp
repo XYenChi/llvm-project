@@ -332,10 +332,8 @@ ExecutionEngine::create(Operation *m, const ExecutionEngineOptions &options,
 
     if (useJITLink) {
       // JITLink path
+      LDBG() << "Using ObjectLinkingLayer (JITLink)";
       objectLayer = std::make_unique<llvm::orc::ObjectLinkingLayer>(session);
-
-      LLVM_DEBUG(llvm::dbgs() << "Using ObjectLinkingLayer (JITLink)\n");
-
     } else {
       // RuntimeDyld path
       auto rtDyldLayer = std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(
@@ -353,9 +351,7 @@ ExecutionEngine::create(Operation *m, const ExecutionEngineOptions &options,
       if (engine->perfListener)
         rtDyldLayer->registerJITEventListener(*engine->perfListener);
 
-      LLVM_DEBUG(llvm::dbgs() << "Using RTDyldObjectLinkingLayer\n");
-
-      // Upcast
+      LDBG() << "mlir::ExecutionEngine initialized with RTDyldObjectLinkingLayer engine";
       objectLayer = std::move(rtDyldLayer);
     }
 
