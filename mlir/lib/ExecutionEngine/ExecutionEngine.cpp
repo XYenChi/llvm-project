@@ -315,25 +315,45 @@ ExecutionEngine::create(Operation *m, const ExecutionEngineOptions &options,
   // process and dynamically linked libraries.
   auto objectLinkingLayerCreator = [&](ExecutionSession &session,
                                        llvm::jitlink::JITLinkMemoryManager
-                                           &IgnoredMemMgr) {
+                                           &ignoredMemMgr) {
     // Needed to respect AArch64 ABI requirements on the distance between
     // TEXT and GOT sections.
 
-    // Check if we should use ObjectLinkingLayer (JITLink)
-    // JITLink supports modern architectures like RISC-V, AArch64
-    // RuntimeDyld is older and provides better compatibility with legacy
-    // platforms
-
-    // Decide which layer to use
-    bool useJITLink = llvmModule->getTargetTriple().isAArch64() ||
-                      llvmModule->getTargetTriple().isRISCV();
+    // Prefer ObjectLinkingLayer (JITLink) by default and only fall back to
+    // RuntimeDyld for target / format combinations where JITLink is not
+    // currently supported.
+    const llvm::Triple &targetTriple = llvmModule->getTargetTriple();
+    bool useJITLink = true;
+    switch (targetTriple.getArch()) {
+    case Triple::aarch64:
+      useJITLink = !targetTriple.isOSBinFormatCOFF();
+      break;
+    case Triple::arm:
+    case Triple::armeb:
+    case Triple::thumb:
+    case Triple::thumbeb:
+      useJITLink = targetTriple.isOSBinFormatELF();
+      break;
+    case Triple::ppc64:
+      useJITLink = targetTriple.isPPC64ELFv2ABI();
+      break;
+    case Triple::ppc64le:
+      useJITLink = targetTriple.isOSBinFormatELF();
+      break;
+    case Triple::x86_64:
+      useJITLink = !targetTriple.isOSBinFormatCOFF();
+      break;
+    default:
+      break;
+    }
 
     std::unique_ptr<llvm::orc::ObjectLayer> objectLayer;
 
     if (useJITLink) {
       // JITLink path
       LDBG() << "Using ObjectLinkingLayer (JITLink)";
-      objectLayer = std::make_unique<llvm::orc::ObjectLinkingLayer>(session);
+      objectLayer = std::make_unique<llvm::orc::ObjectLinkingLayer>(session,
+                                                           ignoredMemMgr);
     } else {
       // RuntimeDyld path
       auto rtDyldLayer = std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(
@@ -358,7 +378,6 @@ ExecutionEngine::create(Operation *m, const ExecutionEngineOptions &options,
     // COFF format binaries (Windows) need special handling to deal with
     // exported symbol visibility.
     // cf llvm/lib/ExecutionEngine/Orc/LLJIT.cpp LLJIT::createObjectLinkingLayer
-    const llvm::Triple &targetTriple = llvmModule->getTargetTriple();
     if (!useJITLink && targetTriple.isOSBinFormatCOFF()) {
       if (auto *rtDyldLayer = dyn_cast<llvm::orc::RTDyldObjectLinkingLayer>(
               objectLayer.get())) {
