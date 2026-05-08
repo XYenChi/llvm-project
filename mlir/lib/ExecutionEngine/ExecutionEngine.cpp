@@ -380,7 +380,7 @@ ExecutionEngine::create(Operation *m, const ExecutionEngineOptions &options,
     // exported symbol visibility.
     // cf llvm/lib/ExecutionEngine/Orc/LLJIT.cpp LLJIT::createObjectLinkingLayer
     if (!useJITLink && targetTriple.isOSBinFormatCOFF()) {
-      if (auto *rtDyldLayer = dyn_cast<llvm::orc::RTDyldObjectLinkingLayer>(
+      if (auto *rtDyldLayer = cast<llvm::orc::RTDyldObjectLinkingLayer>(
               objectLayer.get())) {
         rtDyldLayer->setOverrideObjectFlagsWithResponsibilityFlags(true);
         rtDyldLayer->setAutoClaimResponsibilityForObjectSymbols(true);
